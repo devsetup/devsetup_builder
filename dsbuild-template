@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+#
+# dsbuild-template
+
+import argparse
+import jinja2
+import os
+import subprocess
+import sys
+import yaml
+
+def chmod_file(filename, value):
+	retval = subprocess.call(["chmod", value, filename])
+	if retval != 0:
+		raise RuntimeError("cannot chmod " + filename)
+
+def chown_file(filename, value):
+	retval = subprocess.call(["chown", value, filename])
+	if retval != 0:
+		raise RuntimeError("cannot chown " + filename)
+
+def load_params(filename):
+	with open (filename, "r") as myfile:
+		params = yaml.safe_load(myfile)
+
+	return params
+
+def load_template(filename, params):
+	templateLoader = jinja2.FileSystemLoader( searchpath="/" )
+	templateEnv = jinja2.Environment( loader=templateLoader )
+	template = templateEnv.get_template( os.path.realpath(filename) )
+
+	return template.render(params)
+
+def parse_args():
+	parser = argparse.ArgumentParser()
+	parser.add_argument("--params", help="the YAML file containing the settings to use", default="dsbuild.yml")
+	parser.add_argument("--src", help="the template to copy from", required=True)
+	parser.add_argument("--dest", help="the file to write the expanded template to", required=True)
+	parser.add_argument("--chown", help="the user:group who will own the file we write")
+	parser.add_argument("--chmod", help="the file permissions to set on the file we write")
+
+	args = parser.parse_args()
+	return args
+
+def save_to_dest(filename, text):
+	with open (filename, "w") as myfile:
+		myfile.write(text)
+
+def main():
+	args = parse_args()
+	params = load_params(args.params)
+	outputText = load_template(args.src, params)
+	save_to_dest(args.dest, outputText)
+
+	if args.chown:
+		chown_file(args.dest, args.chown)
+
+	if args.chmod:
+		chmod_file(args.dest, args.chmod)
+
+main()
